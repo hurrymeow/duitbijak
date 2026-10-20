@@ -260,7 +260,7 @@ function periodMonths() {
   const to = Math.min(ui.toIdx, months.length - 1);
   return { from, to, filtered: months.slice(from, to + 1) };
 }
-const PRESETS = [["3m", "3M"], ["6m", "6M"], ["ytd", "YTD"], ["all", "All"]];
+const PRESETS = [["1m", "1M"], ["3m", "3M"], ["6m", "6M"], ["ytd", "YTD"], ["all", "All"]];
 // Presets end at the latest full month, so a pending or partial month never
 // drags them. With no full month yet, fall back to the latest one.
 function presetRange(key) {
@@ -268,6 +268,7 @@ function presetRange(key) {
   let last = months.length - 1;
   while (last > 0 && !isConfirmed(months[last])) last--;
   if (!isConfirmed(months[last])) last = months.length - 1;
+  if (key === "1m") return [last, last];
   if (key === "3m") return [Math.max(0, last - 2), last];
   if (key === "6m") return [Math.max(0, last - 5), last];
   if (key === "ytd") { const year = months[last].month.split(" ")[1]; return [months.findIndex(m => m.month.split(" ")[1] === year), last]; }
@@ -287,7 +288,7 @@ function renderPeriod(from, to, count) {
     <span style="font-size:14px;color:var(--text-2)">to</span>
     <select id="to-select" aria-label="To">${options(to)}</select>
   </div>`}
-  <div class="period-range">${esc(months[from].month)} – ${esc(months[to].month)} &middot; ${count} month${count !== 1 ? "s" : ""}</div>`;
+  <div class="period-range">${esc(periodLabel(months.slice(from, to + 1)))} &middot; ${count} month${count !== 1 ? "s" : ""}</div>`;
 }
 
 // A month whose card statements are missing reads as a big drop in spend.
