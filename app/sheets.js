@@ -194,13 +194,17 @@ function renderAddMonth() {
 }
 
 /* ============================== total out ============================== */
-// Invested shows apart from spend, one-offs and fixed bills. The savings
-// rate would back out salary, so it shows only with income visible.
-function outSplit(b, savingsRate) {
-  const showRate = !ui.hideIncome && savingsRate != null && b.saved;
+// Invested shows apart from spend, one-offs and fixed bills. Saved is money in
+// left over after all money out. The savings rate is invested plus saved over
+// all money in. Both back out salary, so they show only with income visible.
+function outSplit(b, totalIn) {
+  const showIn = !ui.hideIncome && totalIn > 0;
+  const saved = showIn ? Math.round(totalIn - b.total) : 0;
+  const rate = showIn && (b.saved || saved) ? Math.round((b.saved + saved) / totalIn * 100) : null;
   const parts = [["Spend", b.spend], ["One-offs & fixed", b.oneOffs + b.ruleOneOffs + b.fixed],
-    ["Invested", b.saved, showRate ? ` (${savingsRate}% of money in)` : ""]];
-  return parts.filter(([, v]) => v).map(([k, v, note]) => `${k} ${fmt(v)}${note || ""}`).join(" · ");
+    ["Invested", b.saved], [saved < 0 ? "Drawn down" : "Saved", Math.abs(saved)]];
+  const text = parts.filter(([, v]) => v).map(([k, v]) => `${k} ${fmt(v)}`).join(" · ");
+  return rate != null ? `${text} (${rate}% of money in)` : text;
 }
 // From core op-ex to Total out, one step a row.
 function renderOutSheet() {

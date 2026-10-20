@@ -47,10 +47,6 @@ function renderOverview(filtered) {
   const inPeriod = new Set(filtered.map(m => m.month));
   const model = oneOffModel();
   const pendingSuggestions = [...model.suggestions.keys()].filter(k => inPeriod.has(k.split("|")[0])).length;
-  // Savings rate: savings over all money in for the period. Savings can be
-  // funded by transfers from other banks, which a salary-only divisor misses.
-  const totalSavings = filtered.reduce((s, m) => s + savingsAmount(m), 0);
-  const savingsRate = totalIn > 0 ? Math.round(totalSavings / totalIn * 100) : null;
 
   // Op-Ex per-month figures divide by confirmed months only, so a partial
   // month (a card statement still missing) doesn't pull the averages down.
@@ -135,7 +131,7 @@ function renderOverview(filtered) {
       <div class="metric-sub">${confirmed.length} month${confirmed.length !== 1 ? "s" : ""} confirmed${partialCard.length ? ` &middot; ${esc(partialCard.map(mo => mo.split(" ")[0]).join(", "))} partial` : ""}${avgReimbursed > 0 ? ` &middot; after ${esc(fmt(avgReimbursed))}/mo repaid` : ""}</div>
       ${repaySuggestions ? `<div class="metric-sub"><button class="link-btn" data-action="open-sheet" data-sheet="reimb">${repaySuggestions} possible repayment${repaySuggestions !== 1 ? "s" : ""} to review</button></div>` : ""}
     </div>
-    <div class="metric clickable" role="button" tabindex="0" data-action="open-sheet" data-sheet="out"><div class="metric-label">Total out${CHEV}</div><div class="metric-value">${esc(fmt(totalOut))}</div><div class="metric-sub">${!ui.hideIncome ? `in ${esc(fmt(totalIn))}` : `${filtered.length} month${filtered.length !== 1 ? "s" : ""}`}${partial.length ? ` &middot; excl. ${esc(partial.join(", "))}` : ""}</div><div class="metric-sub">${esc(outSplit(outBreakdown(filtered), savingsRate))}</div>
+    <div class="metric clickable" role="button" tabindex="0" data-action="open-sheet" data-sheet="out"><div class="metric-label">Total out${CHEV}</div><div class="metric-value">${esc(fmt(totalOut))}</div><div class="metric-sub">${!ui.hideIncome ? `in ${esc(fmt(totalIn))}` : `${filtered.length} month${filtered.length !== 1 ? "s" : ""}`}${partial.length ? ` &middot; excl. ${esc(partial.join(", "))}` : ""}</div><div class="metric-sub">${esc(outSplit(outBreakdown(filtered), totalIn))}</div>
       ${pendingSuggestions ? `<div class="metric-sub"><button class="link-btn" data-action="open-sheet" data-sheet="review">${pendingSuggestions} one-off${pendingSuggestions !== 1 ? "s" : ""} to review</button></div>` : ""}</div>
   </div>
   <div class="card">
