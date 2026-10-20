@@ -141,7 +141,7 @@ function renderOverview(filtered) {
     ${monthRows}
   </div>
   <div class="card">
-    <p class="card-title">Spend by category &middot; ${esc(filtered[0].month)} – ${esc(latest.month)} (${bucketMonths} mo)</p>
+    <p class="card-title">Spend by category &middot; ${esc(periodLabel(filtered))} (${bucketMonths} mo)</p>
     ${bucketToggle("bucketOverview", bucket)}
     ${cats.length === 0 ? `<div style="font-size:14px;color:var(--text-2);">No data available for this view.</div>` : catRows + reimbRow}
   </div>`;
@@ -163,7 +163,7 @@ function renderDeepDive(filtered) {
   merchAvgMonths.forEach(m => m.topMerchants.forEach(({ name, amt }) => { merchAvgTotals[name] = (merchAvgTotals[name] || 0) + amt; }));
   const ranked = Object.entries(merchTotals).sort((a, b) => b[1] - a[1]).slice(0, 12);
   const merchMax = ranked[0] ? ranked[0][1] : 1;
-  const merchPeriod = merchMonths.length ? `${merchMonths[0].month} – ${merchMonths[merchMonths.length - 1].month}` : "—";
+  const merchPeriod = merchMonths.length ? periodLabel(merchMonths) : "—";
   const flaggedNames = new Set(oneOffModel().flagged.filter(r => merchMonths.some(m => m.month === r.month)).map(r => r.description));
   const merchRows = ranked.map(([name, total]) => `
     <div class="row2 clickable" role="button" tabindex="0" data-action="tx-search" data-q="${esc(name)}">
