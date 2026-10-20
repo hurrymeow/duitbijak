@@ -1,7 +1,7 @@
 // Statement coverage tests on made-up records. Run: node tests/statements.test.js
 "use strict";
 const assert = require("assert");
-const { coverage, recentIssues, recordFromImport, supersededBy, inferRecords, parseDate } = require("../statements.js");
+const { coverage, coveredThrough, monthCovered, recentIssues, recordFromImport, supersededBy, inferRecords, parseDate } = require("../statements.js");
 const { makeAccount } = require("../accounts.js");
 
 const tests = [];
@@ -44,6 +44,24 @@ test("gap between two statements, due after the latest", () => {
   assert.deepStrictEqual(cov.months, ["Nov 2026", "Oct 2026", "Sep 2026", "Aug 2026", "Jul 2026"]);
   assert.ok(cov.accounts[0].overdue);
   assert.strictEqual(cov.accounts[0].nextDue, Date.UTC(2026, 10, 30));
+});
+
+test("covered through the earliest latest statement, quiet days included", () => {
+  const recs = [rec("card-dbs", "12 Sep 2026"), rec("card-dbs", "12 Oct 2026"), rec("bank-posb", "31 Aug 2026"), rec("bank-posb", "30 Sep 2026")];
+  const through = coveredThrough(recs, [], at("20 Oct 2026"));
+  assert.strictEqual(through, at("30 Sep 2026"));
+  assert.ok(monthCovered("Sep 2026", through));
+  assert.ok(!monthCovered("Oct 2026", through));
+  // A card whose cycle ends on the last day covers its month.
+  assert.ok(monthCovered("Oct 2026", coveredThrough([rec("card-uob", "31 Oct 2026")], [], at("05 Nov 2026"))));
+});
+
+test("covered: a closed source drops out, hidden ones are ignored, none falls back to last month", () => {
+  const recs = [rec("card-dbs", "12 Jun 2026"), rec("bank-posb", "30 Sep 2026")];
+  assert.strictEqual(coveredThrough(recs, [], at("20 Oct 2026")), at("30 Sep 2026"));
+  const recent = [rec("card-dbs", "12 Sep 2026"), rec("bank-posb", "30 Sep 2026")];
+  assert.strictEqual(coveredThrough(recent, [], at("20 Oct 2026"), { hidden: s => s === "card-dbs" }), at("30 Sep 2026"));
+  assert.strictEqual(coveredThrough([], [], at("20 Oct 2026")), at("30 Sep 2026"));
 });
 
 test("not overdue inside the grace period", () => {
