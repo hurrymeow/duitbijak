@@ -15,6 +15,8 @@ const Acc = typeof module === "object" && module.exports ? require("./accounts.j
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 // Days after the expected statement date before it counts as overdue.
 const GRACE_DAYS = 7;
+// Days a source can trail the newest statement before it counts as closed.
+const STALE_DAYS = 62;
 const DAY = 86400000;
 
 // "12 Sep 2026" → epoch ms (UTC), or null.
@@ -79,6 +81,32 @@ function inferRecords(months, records) {
   return Object.values(out);
 }
 
+// Saved records plus those inferred for statements imported before records existed.
+function allRecords(records, months) {
+  const saved = (records || []).filter(r => r && sourceOfRecord(r) && r.month);
+  const ids = new Set(saved.map(r => r.id));
+  return saved.concat(inferRecords(months, saved).filter(r => !ids.has(r.id)));
+}
+
+// The date every active source's statements reach: the earliest of their
+// latest statement dates. A statement covers its whole period, quiet days
+// included. A source more than STALE_DAYS behind the newest is taken as
+// closed. With no statements, the end of last month.
+function coveredThrough(records, months, now, opts) {
+  const hidden = (opts && opts.hidden) || (() => false);
+  const latest = {};
+  allRecords(records, months).forEach(r => {
+    const src = sourceOfRecord(r), d = parseDate(r.statementDate);
+    if (d != null && !hidden(src)) latest[src] = Math.max(latest[src] || 0, d);
+  });
+  const dates = Object.values(latest);
+  if (!dates.length) return dayInMonth(monthIndex(now == null ? Date.now() : now), 1) - DAY;
+  const newest = Math.max(...dates);
+  return Math.min(...dates.filter(d => d >= newest - STALE_DAYS * DAY));
+}
+// A month is complete once coverage reaches its last day.
+const monthCovered = (label, through) => dayInMonth(indexOfLabel(label) + 1, 1) - DAY <= through;
+
 // Bank accounts first, then cards, each by bank.
 function sourceOrder(a, b) {
   const ka = a.startsWith("bank-") ? 0 : 1, kb = b.startsWith("bank-") ? 0 : 1;
@@ -95,9 +123,7 @@ function sourceOrder(a, b) {
 function coverage(records, months, now, opts) {
   now = now == null ? Date.now() : now;
   const hidden = (opts && opts.hidden) || (() => false);
-  const saved = (records || []).filter(r => r && sourceOfRecord(r) && r.month);
-  const ids = new Set(saved.map(r => r.id));
-  const all = saved.concat(inferRecords(months, saved).filter(r => !ids.has(r.id)));
+  const all = allRecords(records, months);
   const byAccount = {};
   // Two statements from one source in a month: the cell shows the worse.
   all.forEach(r => {
@@ -142,7 +168,7 @@ function recentIssues(cov, now, monthsBack) {
   return cov.issues.filter(x => x.kind === "due" || indexOfLabel(x.month) > nowIdx - (monthsBack || 3));
 }
 
-const api = { coverage, recentIssues, recordFromImport, supersededBy, inferRecords, parseDate, GRACE_DAYS };
+const api = { coverage, coveredThrough, monthCovered, recentIssues, recordFromImport, supersededBy, inferRecords, parseDate, GRACE_DAYS };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.DuitStatements = api;
 })(typeof self !== "undefined" ? self : this);

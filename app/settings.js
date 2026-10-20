@@ -302,16 +302,11 @@ function missingCards(m) {
   const have = cardAccounts(m);
   return [...seen].filter(a => !have.has(a));
 }
-// A month stays open until it has ended and the next month has card spend.
-// Card cycles close mid-month, so a month's last days arrive on next month's statement.
-function monthOpen(m) {
-  const [mon, yr] = m.month.split(" "), end = new Date(Number(yr), MONTH_ORDER.indexOf(mon) + 1, 1);
-  const next = appData.months[appData.months.findIndex(x => x.month === m.month) + 1];
-  return Date.now() < end.getTime() || !(next && next.cardSpendAvailable);
-}
-// Months whose Op-Ex is complete: a card statement, no card missing, and closed.
-// Averages use only these; a partial month would pull them down.
-function isConfirmed(m) { return m.cardSpendAvailable && !missingCards(m).length && !monthOpen(m); }
+// Months whose Op-Ex is complete: a card statement, no card missing, and every
+// bank and card statement past its last day. Averages use only these; a
+// partial month would pull them down.
+const statementsThrough = () => DuitStatements.coveredThrough(Object.values(appData.statements || {}), appData.months, null, { hidden: src => DuitAccounts.sourceHidden(src, appData.accounts) });
+function isConfirmed(m) { return m.cardSpendAvailable && !missingCards(m).length && DuitStatements.monthCovered(m.month, statementsThrough()); }
 function partialMonths(months) { return months.filter(m => m.cardSpendAvailable && !isConfirmed(m)).map(m => m.month); }
 // Which statements are in, from saved records plus older imports inferred
 // from their transactions (statements.js).
