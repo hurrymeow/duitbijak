@@ -1,7 +1,7 @@
 // Backup and CSV export tests on made-up data. Run: node tests/backup.test.js
 "use strict";
 const assert = require("assert");
-const { buildBackup, parseBackup, transactionsCsv, backupFileName } = require("../backup.js");
+const { buildBackup, parseBackup, transactionsCsv, backupFileName, backupDue, snoozeUntil } = require("../backup.js");
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -42,6 +42,26 @@ test("CSV has one quoted-safe row per transaction with the shown category", () =
 
 test("file names carry the date", () => {
   assert.strictEqual(backupFileName("json", new Date("2026-10-14T05:00:00Z")), "duit-bijak-backup-2026-10-14.json");
+});
+
+const NOW = Date.UTC(2026, 10, 13), D = 86400000;
+test("backup nudge: no data or no new imports means no nag", () => {
+  assert.strictEqual(backupDue({ importsSinceBackup: 3 }, NOW, 0), false);
+  assert.strictEqual(backupDue({ importsSinceBackup: 0 }, NOW, 5), false);
+  assert.strictEqual(backupDue(null, NOW, 5), false);
+});
+test("backup nudge: 2 imports since the last backup is due", () => {
+  assert.strictEqual(backupDue({ lastBackupAt: NOW - D, importsSinceBackup: 2 }, NOW, 1), true);
+});
+test("backup nudge: 1 import is due only when the last backup is over 30 days old or never", () => {
+  assert.strictEqual(backupDue({ lastBackupAt: NOW - 5 * D, importsSinceBackup: 1 }, NOW, 1), false);
+  assert.strictEqual(backupDue({ lastBackupAt: NOW - 31 * D, importsSinceBackup: 1 }, NOW, 1), true);
+  assert.strictEqual(backupDue({ importsSinceBackup: 1 }, NOW, 1), true);
+});
+test("backup nudge: Later hides it for 7 days", () => {
+  const st = { importsSinceBackup: 3, snoozedUntil: snoozeUntil(NOW) };
+  assert.strictEqual(backupDue(st, NOW + 6 * D, 2), false);
+  assert.strictEqual(backupDue(st, NOW + 8 * D, 2), true);
 });
 
 let failed = 0;

@@ -263,17 +263,7 @@ function periodMonths() {
 const PRESETS = [["1m", "1M"], ["3m", "3M"], ["6m", "6M"], ["ytd", "YTD"], ["all", "All"]];
 // Presets end at the latest full month, so a pending or partial month never
 // drags them. With no full month yet, fall back to the latest one.
-function presetRange(key) {
-  const months = appData.months;
-  let last = months.length - 1;
-  while (last > 0 && !isConfirmed(months[last])) last--;
-  if (!isConfirmed(months[last])) last = months.length - 1;
-  if (key === "1m") return [last, last];
-  if (key === "3m") return [Math.max(0, last - 2), last];
-  if (key === "6m") return [Math.max(0, last - 5), last];
-  if (key === "ytd") { const year = months[last].month.split(" ")[1]; return [months.findIndex(m => m.month.split(" ")[1] === year), last]; }
-  return [0, last];
-}
+const presetRange = key => DuitMonths.presetRange(key, appData.months, isConfirmed);
 function renderPeriod(from, to, count) {
   const months = appData.months;
   const preset = ui.customPeriod ? null : (PRESETS.find(([k]) => { const [f, t] = presetRange(k); return f === from && t === to; }) || [null])[0];
@@ -294,21 +284,11 @@ function renderPeriod(from, to, count) {
 // A month whose card statements are missing reads as a big drop in spend.
 // Spot it from the card statement sources seen in the three months before
 // it. Sources, not cards: a new card on the same statement isn't missing.
-function cardAccounts(m) { return new Set((m.transactions || []).map(t => t.account).filter(isCardAccount).map(DuitAccounts.sourceOf)); }
-function missingCards(m) {
-  if (!m.cardSpendAvailable || !(m.transactions || []).length) return [];
-  const i = appData.months.findIndex(x => x.month === m.month);
-  const seen = new Set();
-  appData.months.slice(Math.max(0, i - 3), Math.max(0, i)).forEach(p => cardAccounts(p).forEach(a => seen.add(a)));
-  const have = cardAccounts(m);
-  return [...seen].filter(a => !have.has(a));
-}
-// Months whose Op-Ex is complete: a card statement, no card missing, and every
-// bank and card statement past its last day. Averages use only these; a
-// partial month would pull them down.
+const missingCards = m => DuitMonths.missingCards(m, appData.months);
+// Months whose Op-Ex is complete (months.js). Averages use only these.
 const statementsThrough = () => DuitStatements.coveredThrough(Object.values(appData.statements || {}), appData.months, null, { hidden: src => DuitAccounts.sourceHidden(src, appData.accounts) });
-function isConfirmed(m) { return m.cardSpendAvailable && !missingCards(m).length && DuitStatements.monthCovered(m.month, statementsThrough()); }
-function partialMonths(months) { return months.filter(m => m.cardSpendAvailable && !isConfirmed(m)).map(m => m.month); }
+const isConfirmed = m => DuitMonths.isConfirmed(m, appData.months, statementsThrough());
+const partialMonths = months => DuitMonths.partialMonths(months, isConfirmed);
 // Which statements are in, from saved records plus older imports inferred
 // from their transactions (statements.js).
 const statementCoverage = () => DuitStatements.coverage(Object.values(appData.statements || {}), appData.months, null, { hidden: src => DuitAccounts.sourceHidden(src, appData.accounts) });
@@ -319,6 +299,10 @@ function renderStatementStrip() {
   const shown = issues.slice(-4).reverse().map(x => `<strong>${esc(sourceLabel(x.account))}</strong> ${esc(x.month)} ${x.kind === "due" ? "due" : "missing"}`);
   const more = issues.length > 4 ? ` and ${issues.length - 4} more` : "";
   return `<div class="card nudge"><p>Statements to import: ${shown.join(" &middot; ")}${more}.</p><div class="btn-row" style="margin-top:0;"><button class="btn small" data-action="open-sheet" data-sheet="statements">View</button><button class="btn small primary" data-action="open-add">Import</button></div></div>`;
+}
+function renderBackupNudge() {
+  if (!DuitBackup.backupDue(loadBackupState(), Date.now(), appData.months.length)) return "";
+  return `<div class="card nudge"><p>Your data lives only in this browser. Back up now?</p><div class="btn-row" style="margin-top:0;"><button class="btn small" data-action="backup-later">Later</button><button class="btn small primary" data-action="export-json">Back up</button></div></div>`;
 }
 const CELL_LABEL = { ok: "Imported", inferred: "Imported before statements were tracked", warn: "Imported, but totals didn't match", gap: "Missing", due: "Overdue", none: "" };
 function statementCell(cell) {
@@ -358,7 +342,7 @@ function renderBody() {
   const { from, to, filtered } = periodMonths();
   return `
   ${renderPeriod(from, to, filtered.length)}
-  ${ui.tab === "overview" ? renderStatementStrip() + renderOverview(filtered) : ""}
+  ${ui.tab === "overview" ? renderStatementStrip() + renderBackupNudge() + renderOverview(filtered) : ""}
   ${ui.tab === "deepdive" ? renderDeepDive(filtered) : ""}
   ${ui.tab === "txns" ? renderTxns() : ""}
   `;
