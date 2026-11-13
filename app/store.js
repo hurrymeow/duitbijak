@@ -34,6 +34,12 @@ function loadLocal() {
   } catch (e) {}
   return emptyData();
 }
+// Backup reminder state: per device, so it stays out of appData and backups.
+const BACKUP_KEY = "duitbijak.backup";
+function loadBackupState() { try { return JSON.parse(localStorage.getItem(BACKUP_KEY)) || {}; } catch (e) { return {}; } }
+function saveBackupState(patch) { try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ ...loadBackupState(), ...patch })); } catch (e) {} }
+const noteImport = () => saveBackupState({ importsSinceBackup: (loadBackupState().importsSinceBackup || 0) + 1 });
+const noteBackup = () => saveBackupState({ lastBackupAt: Date.now(), importsSinceBackup: 0, snoozedUntil: 0 });
 function saveLocal() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch (e) {} }
 
 let appData = emptyData();
@@ -150,6 +156,7 @@ async function persistStatements(records) {
     records.forEach(r => { appData.statements[r.id] = r; });
     saveLocal();
   }
+  noteImport();
 }
 // New accounts, or a rename or hide of one already saved.
 async function persistAccounts(list) {
@@ -188,6 +195,7 @@ async function deleteFixedCommitment(name) {
 }
 // A restore replaces everything, as a clear followed by an import would.
 async function restoreAllData(data) {
+  noteBackup(); // restored data equals a backup
   if (dbApi) {
     await clearAllData();
     await Promise.all([

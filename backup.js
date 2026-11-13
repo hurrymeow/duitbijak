@@ -57,7 +57,21 @@ function transactionsCsv(months, opts) {
 // "duit-bijak-backup-2026-10-14.json"
 const backupFileName = (ext, date) => `duit-bijak-backup-${(date || new Date()).toISOString().slice(0, 10)}.${ext}`;
 
-const api = { BACKUP_VERSION, buildBackup, parseBackup, transactionsCsv, backupFileName };
+// Nudge to back up. state is { lastBackupAt, importsSinceBackup, snoozedUntil }
+// (ms timestamps, kept per device). Due with data on hand and either 2+
+// imports since the last backup, or 1+ import and no backup in 30 days.
+const STALE_BACKUP_DAYS = 30, SNOOZE_DAYS = 7, DAY_MS = 86400000;
+function backupDue(state, now, monthCount) {
+  const s = state || {};
+  const imports = s.importsSinceBackup || 0;
+  if (!(monthCount >= 1) || imports < 1) return false;
+  if (s.snoozedUntil && now < s.snoozedUntil) return false;
+  if (imports >= 2) return true;
+  return !s.lastBackupAt || now - s.lastBackupAt > STALE_BACKUP_DAYS * DAY_MS;
+}
+const snoozeUntil = now => now + SNOOZE_DAYS * DAY_MS;
+
+const api = { BACKUP_VERSION, backupDue, snoozeUntil, buildBackup, parseBackup, transactionsCsv, backupFileName };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.DuitBackup = api;
 })(typeof self !== "undefined" ? self : this);

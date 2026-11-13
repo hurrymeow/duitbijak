@@ -100,6 +100,7 @@ function ingestText(text, sourceSuffix, fromPaste) {
   try { parsedMonths = syncFromText(text); }
   catch (err) { ui.syncError = err.message; if (fromPaste) ui.pasteDraft = text; render(); return; }
   persistMonths(parsedMonths).then(() => {
+    noteImport();
     ui.sheet = null; ui.syncError = null; ui.pasteDraft = "";
     if (!dbApi) ui.lastSynced = new Date().toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" });
     showToast(`Loaded ${parsedMonths.length} month${parsedMonths.length !== 1 ? "s" : ""}${sourceSuffix}.`);
@@ -198,8 +199,11 @@ function onClick(e) {
   }
   else if (action === "export-json") {
     downloadFile(DuitBackup.backupFileName("json"), "application/json", JSON.stringify(DuitBackup.buildBackup(appData), null, 1));
+    noteBackup();
     showToast("Backup saved.");
+    render();
   }
+  else if (action === "backup-later") { saveBackupState({ snoozedUntil: DuitBackup.snoozeUntil(Date.now()) }); render(); }
   else if (action === "export-csv") {
     downloadFile(DuitBackup.backupFileName("csv"), "text/csv", DuitBackup.transactionsCsv(appData.months, { accountName: accountLabel, category: resolveCategory }));
     showToast("CSV saved.");
@@ -390,6 +394,7 @@ function onClick(e) {
     };
     btn.disabled = true; btn.textContent = "Saving…";
     persistMonths([newMonth]).then(() => {
+      noteImport();
       ui.tab = "overview"; ui.sheet = null;
       if (!dbApi) ui.lastSynced = new Date().toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" });
       showToast(`${month} saved.`);
